@@ -1,0 +1,16 @@
+apiVersion: v1
+name: cluster-rke2-openstack
+description: Helm Chart for provisioning RKE2 Cluster on top of OpenStack
+version: '0.1.0'
+maintainers:
+  - name: eduardo.scheidet
+    email: eduardo.scheidet@luizalabs.com
+  - name: leonardo.martinsda
+    email: leonardo.martinsda@luizalabs.com
+  - name: alcidesmig
+    email: alcidesmig@gmail.com
+  - name: renato.guilhermini
+    email: renato.guilhermini@luizalabs.com
+annotations:
+  catalog.cattle.io/type: cluster-rke2-openstack
+  catalog.cattle.io/namespace: fleet-default

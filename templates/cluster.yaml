@@ -1,0 +1,203 @@
+apiVersion: provisioning.cattle.io/v1
+kind: Cluster
+metadata:
+  name: {{ $.Values.cluster.name }}
+  annotations:
+        ui.rancher/badge-color: '#{{ .Values.cluster.name | sha256sum | substr 0 6}}'
+        ui.rancher/badge-icon-text: {{ .Values.cluster.name | upper }}
+        ui.rancher/badge-text: {{ $.Values.openstack.tenantName }}
+        lifecycle.cattle.io/create.nodepool-provisioner: 'true'
+        nodepool.cattle.io/reconcile: ''
+  namespace: {{ .Release.Namespace }}
+spec:
+  cloudCredentialSecretName: {{ $.Values.cluster.cloudCredentialSecretName }}
+  kubernetesVersion: {{ $.Values.cluster.kubernetesVersion }}
+  enableNetworkPolicy: false
+  localClusterAuthEndpoint:
+    enabled: {{ $.Values.rke.localClusterAuthEndpoint.enabled | default "false"  }}
+    fqdn: {{ $.Values.rke.localClusterAuthEndpoint.fqdn }}
+    caCerts: {{ $.Values.rke.localClusterAuthEndpoint.caCerts | toJson }}
+  rkeConfig:
+    # Registries to be injected into /etc/rancher/rke2/registries.yaml
+    {{- if $.Values.rke.registries.enabled }}
+    registries:
+      configs:
+        {{- toYaml $.Values.rke.registries.configs | nindent 8 }}
+      mirrors:
+        {{- toYaml $.Values.rke.registries.mirrors | nindent 8 }}
+    {{- end }}
+    etcd:
+      snapshotScheduleCron: {{ $.Values.rke.etcd.snapshotScheduleCron }}
+      snapshotRetention: {{ $.Values.rke.etcd.snapshotRetention }}
+    machineGlobalConfig:
+      cloud-provider-name: external
+      disable-cloud-controller: true
+      secrets-encryption: {{ $.Values.rke.secretsEncryption | default "false" }}
+      {{- if $.Values.rke.etcd.args }}
+      etcd-arg: {{ toYaml $.Values.rke.etcd.args | nindent 9 }}
+      {{- end }}
+      etcd-expose-metrics: {{ $.Values.rke.etcd.exposeMetrics }} 
+      cni: {{ $.Values.cluster.cni.name }}
+      {{- if $.Values.rke.kubeapi.args }}
+      kube-apiserver-arg: {{ toYaml $.Values.rke.kubeapi.args | nindent 9 }}
+      {{- end }}
+      {{- if $.Values.rke.tlsSan }}
+      tls-san: {{ toYaml $.Values.rke.tlsSan | nindent 9}}
+      {{- end }}
+      {{- if $.Values.rke.kubelet.args }}
+      kubelet-arg: {{ toYaml $.Values.rke.kubelet.args | nindent 9}}
+      {{- end }}
+    machineSelectorConfig:
+    - config:
+        {{- if .Values.rke.agentEnvVars }}
+        agentEnvVars:
+        {{- range $key, $value := $.Values.rke.agentEnvVars }}
+        - name: {{ $value.name | quote }}
+          value: {{ $value.value | quote }}
+        {{- end }}
+        {{- end }}
+      machineLabelSelector:
+        matchLabels:
+          node-role.kubernetes.io/control-plane: "false"
+    - config:
+        protect-kernel-defaults: false
+    chartValues:
+      rke2-coredns: {{ toYaml .Values.rke.coredns | nindent 8}}
+      {{- if $.Values.rke.rkeIngressChart.enabled }}
+      rke2-ingress-nginx:
+        controller:
+          kind: "Deployment"
+          hostNetwork: false
+          publishService:
+            enabled: true
+          service:
+            enabled: true
+          autoscaling:
+            enabled: {{ $.Values.rke.rkeIngressChart.autoScaling.enabled | default "true" }}
+            minReplicas: {{ $.Values.rke.rkeIngressChart.autoScaling.minReplicas | default 1 }}
+            maxReplicas: {{ $.Values.rke.rkeIngressChart.autoScaling.maxReplicas | default 3 }}
+          replicaCount: {{ $.Values.rke.rkeIngressChart.replicaCount | default 1 }}
+          tolerations:
+          - effect: NoExecute
+            key: CriticalAddonsOnly
+      {{- end}}
+      {{- if .Values.rke.additionalChartValues }} 
+      {{- toYaml $.Values.rke.additionalChartValues | nindent 6 }}
+      {{- end }}
+    machinePools:
+    {{- if .Values.nodepools }} 
+    {{ range $index, $nodepool := .Values.nodepools }}
+    - name: {{ $nodepool.name }}
+      controlPlaneRole: {{ $nodepool.controlplane }}
+      etcdRole: {{ $nodepool.etcd }}
+      workerRole: {{ $nodepool.worker }}
+      quantity: {{ $nodepool.quantity }}
+      labels:
+      {{- range $key, $value := $nodepool.labels }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- if $nodepool.taints }}
+      taints: {{- toYaml $nodepool.taints | nindent 6 }}
+      {{- end }}
+      {{- if $nodepool.nodeStartupTimeout }}
+      nodeStartupTimeout: {{ $nodepool.nodeStartupTimeout }}
+      {{- end }}
+      {{- if $nodepool.unhealthyNodeTimeout }}
+      unhealthyNodeTimeout: {{ $nodepool.unhealthyNodeTimeout }}
+      drainBeforeDelete: true
+      {{- end }}
+      {{- if $nodepool.maxUnhealthy }}
+      maxUnhealthy: {{ $nodepool.maxUnhealthy }}
+      {{- end }}
+      {{- if $nodepool.unhealthyRange }}
+      unhealthyRange: {{ $nodepool.unhealthyRange }}
+      {{- end }}
+      machineConfigRef:
+        kind: OpenstackConfig
+        name: {{ $nodepool.name }}
+      paused: {{ $nodepool.paused | default false }}
+      displayName: {{ $nodepool.displayName | default $nodepool.name }}
+      {{- if $nodepool.rollingUpdate }}
+      rollingUpdate: 
+        maxUnavailable: {{ $nodepool.rollingUpdate.maxUnavailable }}
+        maxSurge: {{ $nodepool.rollingUpdate.maxSurge }}
+      {{- end }}
+      {{- if $nodepool.machineDeploymentLabels }}
+      machineDeploymentLabels: 
+      {{ toYaml $nodepool.machineDeploymentLabels | indent 8 }}
+      {{- end }}
+      machineDeploymentAnnotations:
+        cluster.provisioning.cattle.io/autoscaler-max-size: "{{ $nodepool.nodeGroupMaxSize }}"
+        cluster.provisioning.cattle.io/autoscaler-min-size: "{{ $nodepool.nodeGroupMinSize }}"
+        {{- if $nodepool.machineDeploymentAnnotations }}
+        {{ toYaml $nodepool.machineDeploymentAnnotations | indent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+    {{- if .Values.nodepool }}
+    {{ $nodepool := .Values.nodepool }}
+    - name: {{ $nodepool.name }}
+      controlPlaneRole: {{ $nodepool.controlplane }}
+      etcdRole: {{ $nodepool.etcd }}
+      workerRole: {{ $nodepool.worker }}
+      quantity: {{ $nodepool.quantity }}
+      labels:
+      {{- range $key, $value := $nodepool.labels }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+      {{- if $nodepool.taints }}
+      taints: {{- toYaml $nodepool.taints | nindent 6 }}
+      {{- end }}
+      {{- if $nodepool.nodeStartupTimeout }}
+      nodeStartupTimeout: {{ $nodepool.nodeStartupTimeout }}
+      {{- end }}
+      {{- if $nodepool.unhealthyNodeTimeout }}
+      unhealthyNodeTimeout: {{ $nodepool.unhealthyNodeTimeout }}
+      drainBeforeDelete: true
+      {{- end }}
+      {{- if $nodepool.maxUnhealthy }}
+      maxUnhealthy: {{ $nodepool.maxUnhealthy }}
+      {{- end }}
+      {{- if $nodepool.unhealthyRange }}
+      unhealthyRange: {{ $nodepool.unhealthyRange }}
+      {{- end }}
+      machineConfigRef:
+        kind: OpenstackConfig
+        name: {{ $nodepool.name }}
+      paused: {{ $nodepool.paused | default false }}
+      displayName: {{ $nodepool.displayName | default $nodepool.name }}
+      {{- if $nodepool.rollingUpdate }}
+      rollingUpdate: 
+        maxUnavailable: {{ $nodepool.rollingUpdate.maxUnavailable }}
+        maxSurge: {{ $nodepool.rollingUpdate.maxSurge }}
+      {{- end }}
+      {{- if $nodepool.machineDeploymentLabels }}
+      machineDeploymentLabels: 
+      {{ toYaml $nodepool.machineDeploymentLabels | indent 8 }}
+      {{- end }}
+      machineDeploymentAnnotations:
+        cluster.provisioning.cattle.io/autoscaler-max-size: "{{ $nodepool.nodeGroupMaxSize }}"
+        cluster.provisioning.cattle.io/autoscaler-min-size: "{{ $nodepool.nodeGroupMinSize }}"
+        {{- if $nodepool.machineDeploymentAnnotations }}
+        {{ toYaml $nodepool.machineDeploymentAnnotations | indent 8 }}
+        {{- end }}
+    {{- end }}
+    additionalManifest: |
+      ---
+      {{- include "cluster-rke2-openstack.nodeScript" . | indent 6}}
+      {{- include "cluster-rke2-openstack.kubeconfigIngress" . | indent 6}}
+      {{- include "cluster-rke2-openstack.cinderCsiPlugin" . | indent 6}}
+      {{- include "cluster-rke2-openstack.openstack-controller-manager" . | indent 6}}
+      {{- include "cluster-rke2-openstack.rke-ingress-raw-manifest" . | indent 6}}
+      {{- if eq .Values.cluster.cni.name "calico" }}
+      {{- include "calicoCNIConfigmap" . | indent 6}}
+      {{- include "calicoNodeInitializer" . | indent 6}}
+      {{- end }}
+{{- range .Values.cluster.additionalManifests }}
+{{ toYaml . | indent 6}}
+      ---
+{{- end }}
+{{- if .Values.cluster.upgradeStrategy }}
+    upgradeStrategy:
+{{ toYaml .Values.cluster.upgradeStrategy | indent 4 }}
+{{- end }}

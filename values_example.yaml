@@ -1,0 +1,316 @@
+cloudprovider: openstack
+imageRegistryURL: ""
+cloudinit:
+  enable: true
+  sshPubKeys:
+  - ssh-rsa pubkey
+  bootcmd:
+  runcmd:
+    - touch /tmp/cloud_init
+openstack:
+    authUrl: https://openstack.example.com:5000
+    applicationCredentialId: 
+    applicationCredentialSecret: 
+    availabilityZone: nova
+    subnetID: 427a8649-583c-4564-a3cf-d49be1f932b2
+    projectId: c13899f8-f869-47f7-83df-f470c989afb1
+    tenantDomainName: Default
+    tenantName: tenant
+    username: tenant
+    domainName: default
+    region: RegionOne
+    floatingNetID: baa6c2c8-4959-437c-84fa-8ed87bf72687
+    floatingSubnetID: 66931ed8-2fc3-40b6-b549-3c773e50f805
+    openstackClientImage: openstacktools/openstack-client
+cluster:
+  apiAddr: kubernetes.default.svc.cluster.local
+  apiPort: 6443
+  additionalManifests:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: secret
+        namespace: ns
+      type: Opaque
+      data:
+        file1.json: xxx
+  secretsEncryption: false
+  upgradeStrategy:
+    controlPlaneDrainOptions: 
+      enabled: false
+      # deleteEmptyDirData: false
+      # disableEviction: false
+      # gracePeriod: 0
+      # ignoreErrors: false
+      # skipWaitForDeleteTimeoutSeconds: 0
+      # timeout: 0
+    workerDrainOptions:
+      enabled: false
+      # deleteEmptyDirData: false
+      # disableEviction: false
+      # gracePeriod: 0
+      # ignoreErrors: false
+      # skipWaitForDeleteTimeoutSeconds: 0
+      # timeout: 0
+    workerConcurrency: "10%"
+    controlPlaneConcurrency: "10%"
+  name: cluster-name
+  kubernetesVersion: v1.21.14+rke2r1
+  cni:
+    # Only one of {cniCanal,cniCalico,cniCilium} can be enabled
+    cniCanal:
+      enabled: false
+      name: canal
+      mtu: 1430
+    cniCalico:
+      enabled: false
+      name: calico
+      blockSize: 24
+      podCidr: 10.42.0.0/16
+      mtu: 1430
+    cniCilium:
+      enabled: true
+      name: cilium
+      blockSize: 24
+      podCidr: 10.42.0.0/16
+      mtu: 1430
+      images:
+        hubbleRelay: 
+          repository: cilium/hubble-relay
+          tag: v1.12.1
+        hubbleUiBackend: 
+          repository: cilium/hubble-ui-backend
+          tag: v0.9.2
+        hubbleUi: 
+          repository: cilium/hubble-ui
+          tag: v0.9.2
+        cilium: 
+          repository: rancher/mirrored-cilium-cilium
+          tag: v1.12.1
+        operator: 
+          repository: rancher/mirrored-cilium-operator
+          tag: v1.12.1
+        preflight: 
+          repository: rancher/mirrored-cilium-cilium
+          tag: v1.12.1
+        ciliumStartupScript: 
+          repository: rancher/mirrored-cilium-startup-script
+          tag: d69851597ea019af980891a4628fb36b7880ec26
+  autoscaler:
+    enabled: false
+    rancherUrl: https://rancher.placeholder.com
+    rancherToken: rancher-token
+    racherClusterName: local
+    image: luizalabscicdmgc/cluster-autoscaler-arm64:dev
+monitoring:
+  enabled: false
+rke:
+  rkeIngressChart:
+    enabled: true
+    replicaCount: "1"
+    autoScaling:
+      enabled: true
+      minReplicas: "1"
+      maxReplicas: "3"
+  rkeIngressRawManifest:
+    enabled: false
+  etcd:
+    args:
+      - "quota-backend-bytes=858993459"
+      - "max-request-bytes=33554432"
+    exposeMetrics: true
+    snapshotRetention: 5
+    snapshotScheduleCron: "0 */12 * * *"  # every 12 hours
+  coredns:
+    nodelocal:
+      enabled: true
+  openstackControllerManager:
+    image: k8scloudprovider/openstack-cloud-controller-manager
+    tag: v1.24.0
+    enableLoadBalancerCreateMonitor: false
+  cinderCsiPlugin:
+    image: k8scloudprovider/cinder-csi-plugin
+    tag: v1.25.0
+  registries:
+    enabled: false
+    configs:
+      gcr.io:
+        authConfigSecretName: secret-example
+        caBundle: ''
+        insecureSkipVerify: false
+    mirrors:
+      gcr.io:
+        endpoint:
+          - 'https://gcr.io'
+  nodeScripts:
+  - name: script-example-1
+    runOnControlPlanes: true
+    script:
+     - /bin/bash
+     - -c
+     - "touch /tmp/example_script"
+    image: "ubuntu:22.04"
+    pauseContainerImage: "google/pause"
+    env:
+    - name: "ENV"
+      value: "VALUE"
+    volumes: 
+      entries:
+      - name: root-mount
+        hostPath:
+          path: /
+      volumeMounts:
+      - name: root-mount
+        mountPath: /root
+  # LoadBalancer
+  agentEnvVars: []
+    # - name: RKE2_URL
+    #   value: https://10.1.1.131:9345
+  kubeapi:
+    args: 
+      - "watch-cache=true"
+  kubelet:
+    args: 
+      - "max-pods=150"
+  localClusterAuthEndpoint: 
+    enabled: false
+    fqdn: example.rancher.local
+    secretName: example-rancher-local-secret
+  tlsSan: []
+nodepools:
+  - name: wa
+    availabilityZone: zone-a
+    quantity: 1
+    etcd: false 
+    worker: true
+    netId: 427a8649-583c-4564-a3cf-d49be1f932b2
+    controlplane: false
+    bootFromVolume: false
+    volumeSize:
+    volumeDevicePath:
+    volumeType:
+    flavorName: 
+    imageName: "ubuntu-22.04"
+    secGroups: default
+    keypairName: 
+    sshUser: ubuntu
+    sshPort: 22
+    activeTimeout: 900
+    nodeGroupMaxSize: 10
+    nodeGroupMinSize: 10
+    labels: 
+      key: value
+      example: value
+    taints:
+     - key: test1
+       value: test1
+       effect: NoSchedule
+     - key: example
+       value: yes
+       effect: PreferNoSchedule
+    unhealthyNodeTimeout: 5m
+    drainBeforeDelete: true
+  - name: wb
+    availabilityZone: zone-b
+    quantity: 1
+    etcd: false 
+    worker: true
+    netId: 427a8649-583c-4564-a3cf-d49be1f932b2
+    controlplane: false
+    bootFromVolume: false
+    volumeSize:
+    volumeDevicePath:
+    volumeType:
+    flavorName: 
+    imageName: "ubuntu-20.04"
+    secGroups: default
+    keypairName: 
+    sshUser: ubuntu
+    sshPort: 22
+    activeTimeout: 900
+    nodeGroupMaxSize: 10
+    nodeGroupMinSize: 10
+    unhealthyNodeTimeout: 5m
+    drainBeforeDelete: true
+  - name: wc
+    availabilityZone: zone-c
+    quantity: 1
+    etcd: false 
+    worker: true
+    netId: 427a8649-583c-4564-a3cf-d49be1f932b2
+    controlplane: false
+    bootFromVolume: false
+    volumeSize:
+    volumeDevicePath:
+    volumeType:
+    flavorName: 
+    imageName: "ubuntu-20.04"
+    secGroups: default
+    keypairName: 
+    sshUser: ubuntu
+    sshPort: 22
+    activeTimeout: 900
+    nodeGroupMaxSize: 10
+    nodeGroupMinSize: 10
+    unhealthyNodeTimeout: 5m
+    drainBeforeDelete: true
+  - name: cpa
+    availabilityZone: zone-a
+    quantity: 1
+    etcd: true 
+    worker: false
+    netId: 427a8649-583c-4564-a3cf-d49be1f932b2
+    controlplane: true
+    bootFromVolume: false
+    volumeSize:
+    volumeDevicePath:
+    volumeType:
+    flavorName: flavor-cp
+    imageName: "ubuntu-20.04"
+    secGroups: default
+    keypairName: 
+    sshUser: ubuntu
+    sshPort: 22
+    activeTimeout: 900
+    nodeGroupMaxSize: 1
+    nodeGroupMinSize: 1
+  - name: cpb
+    availabilityZone: zone-b
+    quantity: 1
+    etcd: true 
+    worker: false
+    netId: 427a8649-583c-4564-a3cf-d49be1f932b2
+    controlplane: true
+    bootFromVolume: false
+    volumeSize:
+    volumeDevicePath:
+    volumeType:
+    flavorName: flavor-cp
+    imageName: "ubuntu-20.04"
+    secGroups: default
+    keypairName: 
+    sshUser: ubuntu
+    sshPort: 22
+    activeTimeout: 900
+    nodeGroupMaxSize: 1
+    nodeGroupMinSize: 1
+  - name: cpc
+    availabilityZone: zone-c
+    quantity: 1
+    etcd: true 
+    worker: false
+    netId: 427a8649-583c-4564-a3cf-d49be1f932b2
+    controlplane: true
+    bootFromVolume: false
+    volumeSize:
+    volumeDevicePath:
+    volumeType:
+    flavorName: flavor-cp
+    imageName: "ubuntu-20.04"
+    secGroups: default
+    keypairName: 
+    sshUser: ubuntu
+    sshPort: 22
+    activeTimeout: 900
+    nodeGroupMaxSize: 1
+    nodeGroupMinSize: 1

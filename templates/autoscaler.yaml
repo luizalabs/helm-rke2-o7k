@@ -1,0 +1,232 @@
+{{- if $.Values.cluster.autoscaler.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: cluster-autoscaler
+spec:
+  selector:
+    matchLabels:
+      app: cluster-autoscaler
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cluster-autoscaler
+    spec:
+      initContainers:
+       - name: get-kubeconfig
+         image: luizalabscicdmgc/netshoot
+         command:
+          - /bin/bash
+          - -exc
+          - |
+            /bin/bash /script/init.sh > /config/kubeconfig
+         volumeMounts:
+         - name: tmp-kubeconfig
+           mountPath: /config
+         - name: kubeconfigscript
+           mountPath: /script
+      containers:
+      - image: {{ $.Values.cluster.autoscaler.image }}
+        name: cluster-autoscaler
+        command:
+        - ./cluster-autoscaler
+        args:
+        - --kubeconfig=/config/kubeconfig
+        - --cloud-provider=rancher
+        - --cloud-config=/rancherconfig/config.yaml
+        - --logtostderr=true 
+        - --stderrthreshold=info
+        - --expander=random 
+        - --node-group-auto-discovery=rancher:clusterName={{ $.Values.cluster.name }} 
+        - --v=4 
+        volumeMounts:
+        - name: rancherconfig
+          mountPath: /rancherconfig
+          readOnly: true
+        - name: tmp-kubeconfig
+          mountPath: /config
+        env:
+          - name: CAPI_GROUP
+            value: cluster.x-k8s.io
+      serviceAccountName: user-{{ $.Values.cluster.name }}
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: rancherconfig
+        secret:
+          secretName: autoscaler-cluster-creds
+      - name: kubeconfigscript
+        secret:
+          secretName: autoscaler-cluster-script
+      - name: tmp-kubeconfig
+        emptyDir: {}
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-autoscaler-workload-{{ $.Values.cluster.name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-autoscaler-workload-{{ $.Values.cluster.name }}
+subjects:
+- kind: ServiceAccount
+  name: user-{{ $.Values.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-autoscaler-management-{{ $.Values.cluster.name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-autoscaler-management-{{ $.Values.cluster.name }}
+subjects:
+- kind: ServiceAccount
+  name: user-{{ $.Values.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user-{{ $.Values.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-autoscaler-workload-{{ $.Values.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+    - ""
+    resources:
+    - namespaces
+    - persistentvolumeclaims
+    - persistentvolumes
+    - pods
+    - replicationcontrollers
+    - services
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - nodes
+    verbs:
+    - get
+    - list
+    - update
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - pods/eviction
+    verbs:
+    - create
+  - apiGroups:
+    - policy
+    resources:
+    - poddisruptionbudgets
+    verbs:
+    - list
+    - watch
+  - apiGroups:
+    - storage.k8s.io
+    resources:
+    - csinodes
+    - storageclasses
+    - csidrivers
+    - csistoragecapacities
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - batch
+    resources:
+    - jobs
+    verbs:
+    - list
+    - watch
+  - apiGroups:
+    - apps
+    resources:
+    - daemonsets
+    - replicasets
+    - statefulsets
+    verbs:
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - events
+    verbs:
+    - create
+    - patch
+  - apiGroups:
+    - ""
+    resources:
+    - configmaps
+    verbs:
+    - create
+    - delete
+    - get
+    - update
+  - apiGroups:
+    - coordination.k8s.io
+    resources:
+    - leases
+    verbs:
+    - create
+    - get
+    - update
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-autoscaler-management-{{ $.Values.cluster.name }}
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+    - cluster.x-k8s.io
+    resources:
+    - machinedeployments
+    - machinedeployments/scale
+    - machines
+    - machinesets
+    verbs:
+    - get
+    - list
+    - update
+    - watch
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: autoscaler-cluster-creds
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+data:
+  config.yaml: {{- include "cluster-rke2-openstack.autoscalerConfigMap" . | b64enc | indent 1 }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: autoscaler-cluster-script
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+data:
+  init.sh: {{- include "cluster-rke2-openstack.autoscalerKubeconfig" . | b64enc | indent 1 }}
+{{ end }}

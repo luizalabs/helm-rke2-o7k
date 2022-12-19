@@ -1,0 +1,10 @@
+{{- range $index, $member := .Values.clusterMembers }}
+apiVersion: management.cattle.io/v3
+clusterName: {{ $.Values.cluster.name }}
+kind: ClusterRoleTemplateBinding
+metadata:
+  name: ctrb-{{ trunc 8 (sha256sum (printf "%s/%s" $.Release.Namespace $member.principalName )) }}
+  namespace: {{ $.Release.Namespace }}
+roleTemplateName: {{ $member.roleTemplateName }}
+userPrincipalName: {{ $member.principalName }}
+{{- end }}

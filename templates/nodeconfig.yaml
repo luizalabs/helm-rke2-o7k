@@ -1,0 +1,142 @@
+{{- if eq .Values.cloudprovider "openstack" }}
+{{- range $index, $nodepool := .Values.nodepools }}
+apiVersion: rke-machine-config.cattle.io/v1
+kind: OpenstackConfig
+metadata:
+  name: {{ $nodepool.name }}
+  namespace: {{ $.Release.Namespace }}
+{{- if $nodepool.userDataFile }}
+userDataFile: {{ $nodepool.userDataFile }}
+{{- end }}
+{{- if $.Values.cloudinit.enable }}
+userDataFile: |+
+  #cloud-config
+  {{- if $.Values.cloudinit.sshPubKeys }}
+  ssh_authorized_keys:
+    {{- range $value := $.Values.cloudinit.sshPubKeys }}
+    - {{ $value }}
+    {{- end }}
+  {{- end }}
+  {{- if $.Values.cloudinit.bootcmd }}
+  bootcmd:
+    {{- range $value := $.Values.cloudinit.runcmd }}
+    - {{ $value }}
+    {{- end }}
+  {{- end }}
+  {{- if $.Values.cloudinit.runcmd }}
+  package_update: true
+  package_upgrade: true
+  cloud_config_modules:
+    - runcmd
+  cloud_final_modules:
+    - scripts-user
+  runcmd:
+    {{- range $value := $.Values.cloudinit.runcmd }}
+    - {{ $value }}
+    {{- end }}
+    - cat /var/log/cloud-init.log
+  output: {all: '| tee -a /var/log/cloud-init-output.log'}
+  {{- end }}
+{{- end }}
+authUrl: {{ $.Values.openstack.authUrl }}
+region: {{ $.Values.openstack.region | default "RegionOne" }}
+applicationCredentialId: {{ $.Values.openstack.applicationCredentialId }}
+applicationCredentialSecret: {{ $.Values.openstack.applicationCredentialSecret }}
+availabilityZone: {{ $nodepool.availabilityZone }}
+domainName: {{ $.Values.openstack.domainName | default "default" }}
+netId: {{ $nodepool.netId }}
+tenantName: {{ $.Values.openstack.tenantName }}
+{{- if $.Values.openstack.username }}
+username: {{ $.Values.openstack.username }}
+{{- end }}
+sshUser: {{ $nodepool.sshUser | default "ubuntu" }}
+sshPort: "{{ $nodepool.sshPort | default "22" }}"
+activeTimeout: "{{ $nodepool.activeTimeout | default "200" }}"
+flavorName: {{ $nodepool.flavorName }}
+imageName: {{ $nodepool.imageName | default "ubuntu-2004-cloudimg" }}
+ipVersion: "4"
+keypairName: {{ $nodepool.keypairName }}
+# Valor default aceito pela implementação do helm porém ainda sem funcionar com sucesso
+privateKeyFile: {{ $nodepool.privateKeyFile | default "./keypair.pem" }}
+secGroups: {{ $nodepool.secGroups | default "default" }}
+tenantDomainName: {{ $nodepool.tenantDomainName | default "Default" }}
+bootFromVolume: {{ $nodepool.bootFromVolume }}
+{{- if $nodepool.volumeSize }}
+volumeSize: "{{ $nodepool.volumeSize }}"
+{{- end }}
+{{- if $nodepool.volumeType }}
+volumeType: {{ $nodepool.volumeType }}
+{{- end }}
+---
+{{- end }}
+{{ $nodepool := .Values.nodepool }}
+{{- if $nodepool }}
+apiVersion: rke-machine-config.cattle.io/v1
+kind: OpenstackConfig
+metadata:
+  name: {{ $nodepool.name }}
+  namespace: {{ $.Release.Namespace }}
+{{- if $nodepool.userDataFile }}
+userDataFile: {{ $nodepool.userDataFile }}
+{{- end }}
+{{- if $.Values.cloudinit.enable }}
+userDataFile: |+
+  #cloud-config
+  {{- if $.Values.cloudinit.sshPubKeys }}
+  ssh_authorized_keys:
+    {{- range $value := $.Values.cloudinit.sshPubKeys }}
+    - {{ $value }}
+    {{- end }}
+  {{- end }}
+  {{- if $.Values.cloudinit.bootcmd }}
+  bootcmd:
+    {{- range $value := $.Values.cloudinit.runcmd }}
+    - {{ $value }}
+    {{- end }}
+  {{- end }}
+  {{- if $.Values.cloudinit.runcmd }}
+  package_update: true
+  package_upgrade: true
+  cloud_config_modules:
+    - runcmd
+  cloud_final_modules:
+    - scripts-user
+  runcmd:
+    {{- range $value := $.Values.cloudinit.runcmd }}
+    - {{ $value }}
+    {{- end }}
+    - cat /var/log/cloud-init.log
+  output: {all: '| tee -a /var/log/cloud-init-output.log'}
+  {{- end }}
+{{- end }}
+authUrl: {{ $.Values.openstack.authUrl }}
+region: {{ $.Values.openstack.region | default "RegionOne" }}
+applicationCredentialId: {{ $.Values.openstack.applicationCredentialId }}
+applicationCredentialSecret: {{ $.Values.openstack.applicationCredentialSecret }}
+availabilityZone: {{ $nodepool.availabilityZone }}
+domainName: {{ $.Values.openstack.domainName | default "default" }}
+netId: {{ $nodepool.netId }}
+tenantName: {{ $.Values.openstack.tenantName }}
+{{- if $.Values.openstack.username }}
+username: {{ $.Values.openstack.username }}
+{{- end }}
+sshUser: {{ $nodepool.sshUser | default "ubuntu" }}
+sshPort: "{{ $nodepool.sshPort | default "22" }}"
+activeTimeout: "{{ $nodepool.activeTimeout | default "200" }}"
+flavorName: {{ $nodepool.flavorName }}
+imageName: {{ $nodepool.imageName | default "ubuntu-2004-cloudimg" }}
+ipVersion: "4"
+keypairName: {{ $nodepool.keypairName }}
+# Valor default aceito pela implementação do helm porém ainda sem funcionar com sucesso
+privateKeyFile: {{ $nodepool.privateKeyFile | default "./keypair.pem" }}
+secGroups: {{ $nodepool.secGroups | default "default" }}
+tenantDomainName: {{ $nodepool.tenantDomainName | default "Default" }}
+bootFromVolume: {{ $nodepool.bootFromVolume }}
+{{- if $nodepool.volumeSize }}
+volumeSize: "{{ $nodepool.volumeSize }}"
+{{- end }}
+{{- if $nodepool.volumeType }}
+volumeType: {{ $nodepool.volumeType }}
+{{- end }}
+{{- end }}
+{{- end }}
